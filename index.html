@@ -1,0 +1,1778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Solar Forecast</title>
+<meta name="description" content="Warm, minimal solar production forecast" />
+
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#c1552c" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Solar" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" href="icons/icon-192.png" />
+
+<style>
+  :root {
+    color-scheme: dark;
+    --card-bg: rgba(255, 255, 255, 0.10);
+    --card-border: rgba(255, 255, 255, 0.22);
+    --divider: rgba(255, 255, 255, 0.16);
+    --text-primary: #fff8f0;
+    --text-secondary: rgba(255, 248, 240, 0.62);
+    --text-tertiary: rgba(255, 248, 240, 0.4);
+    --accent: #ffcf8a;
+    --bar-top: #ffd394;
+    --bar-bottom: #ff8a3d;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+      "Helvetica Neue", Arial, sans-serif;
+    color: var(--text-primary);
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 18px;
+    background: radial-gradient(120% 90% at 50% -10%, #6e3a22 0%, transparent 60%),
+      linear-gradient(165deg, #2b140d 0%, #5a2416 28%, #a4451f 58%, #d9772f 82%, #f5aa4f 100%);
+    background-attachment: fixed;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  body::before, body::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.55;
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::before {
+    width: 380px; height: 380px;
+    top: -120px; right: -100px;
+    background: radial-gradient(circle, #ffcf8a 0%, rgba(255,207,138,0) 70%);
+  }
+  body::after {
+    width: 420px; height: 420px;
+    bottom: -160px; left: -120px;
+    background: radial-gradient(circle, #ff6a3d 0%, rgba(255,106,61,0) 70%);
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 380px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 32px;
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+    animation: rise 0.6s cubic-bezier(.2,.8,.2,1) both;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .header { text-align: center; padding: 28px 24px 16px; }
+
+  .header .icon {
+    font-size: 26px;
+    line-height: 1;
+    filter: drop-shadow(0 2px 6px rgba(255, 170, 90, 0.5));
+  }
+
+  .header h1 {
+    margin: 8px 0 3px;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+
+  .header .date {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* segmented Today / Tomorrow toggle */
+  .segmented {
+    display: flex;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .segmented button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 0;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+  .segmented button.active {
+    background: rgba(255, 255, 255, 0.16);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  }
+  .segmented button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .divider { height: 1px; background: var(--divider); margin: 0 24px; }
+
+  .day-block {
+    padding: 22px 24px 6px;
+    text-align: center;
+    transition: opacity 0.3s ease;
+  }
+
+  .label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  .kwh {
+    font-size: 44px;
+    font-weight: 650;
+    letter-spacing: -1px;
+    margin: 6px 0 2px;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, #fff, #ffe2bd);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .kwh sup {
+    font-size: 16px;
+    font-weight: 600;
+    margin-left: 3px;
+    -webkit-text-fill-color: var(--text-secondary);
+    color: var(--text-secondary);
+  }
+
+  .quality-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0 16px;
+  }
+  .quality-badge {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  .quality-badge.excellent { background: rgba(120, 230, 150, 0.18); color: #a8f5bd; }
+  .quality-badge.good      { background: rgba(255, 224, 130, 0.18); color: #ffe082; }
+  .quality-badge.fair      { background: rgba(255, 184, 108, 0.2); color: #ffc98a; }
+  .quality-badge.poor      { background: rgba(255, 138, 61, 0.22); color: #ffab7a; }
+  .quality-badge.verypoor  { background: rgba(255, 90, 90, 0.22); color: #ffa1a1; }
+
+  .quality-text {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    max-width: 280px;
+    padding: 0 6px;
+  }
+
+  .sparkline-wrap { padding: 4px 0 2px; }
+  .sparkline { width: 100%; height: 54px; display: block; overflow: visible; }
+
+  .sparkline .pt { fill: var(--accent); opacity: 0.55; }
+  .sparkline .pt.now {
+    fill: #fff6e6;
+    opacity: 1;
+    filter: drop-shadow(0 0 5px rgba(255, 210, 140, 0.9));
+  }
+  .sparkline .now-line { stroke: rgba(255, 246, 230, 0.35); stroke-width: 1; stroke-dasharray: 2 3; }
+
+  .graph-fade {
+    animation: fadeGraph 0.5s ease both;
+  }
+  @keyframes fadeGraph {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .window-row {
+    margin: 14px 0 4px;
+    text-align: center;
+  }
+  .value-sm {
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .value-sm .muted { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 16px 0 4px;
+    text-align: center;
+  }
+
+  .utilisation { margin: 18px 0 2px; }
+  .utilisation .label-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .utilisation .label-row b { color: var(--text-primary); font-weight: 700; }
+  .bar {
+    height: 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--bar-bottom), var(--bar-top));
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+
+  .footer {
+    padding: 18px 24px 22px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .footer-grid {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    margin-top: 8px;
+  }
+  .footer-grid div { text-align: center; }
+  .footer-grid .f-label {
+    font-size: 9.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  .footer-grid .f-value {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #6de08a;
+    box-shadow: 0 0 6px #6de08a;
+    flex-shrink: 0;
+  }
+  .dot.stale { background: #ffb454; box-shadow: 0 0 6px #ffb454; }
+
+  .advisor-block { padding: 20px 24px 22px; }
+
+  .advisor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .settings-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .settings-btn:hover { background: rgba(255, 255, 255, 0.16); color: var(--text-primary); }
+
+  .advisor-metric { text-align: center; margin-bottom: 14px; }
+  .value-md {
+    font-size: 24px;
+    font-weight: 700;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .value-md.deficit { color: #ffb1a1; }
+  .value-md.surplus { color: #b8f0c4; }
+  .advisor-sub {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin-top: 3px;
+  }
+
+  .advice-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-primary);
+  }
+  .advice-card .advice-icon { font-size: 17px; line-height: 1.4; }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 8, 4, 0.55);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    width: 100%;
+    max-width: 340px;
+    max-height: 86vh;
+    overflow-y: auto;
+    background: linear-gradient(165deg, rgba(90, 40, 26, 0.92), rgba(50, 22, 14, 0.94));
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    padding: 22px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    animation: rise 0.35s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+  .modal-sub { margin: 0 0 18px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; }
+
+  .load-row {
+    display: grid;
+    grid-template-columns: 1fr 68px 60px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .load-row .load-name { font-size: 13px; font-weight: 600; }
+  .load-row .load-field { position: relative; }
+  .load-row input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--card-border);
+    border-radius: 9px;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 6px 6px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .load-row .load-field span {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+  }
+  .load-legend {
+    display: grid;
+    grid-template-columns: 1fr 68px 60px;
+    gap: 8px;
+    font-size: 9.5px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .modal-actions button {
+    flex: 1;
+    border: none;
+    border-radius: 12px;
+    padding: 11px 0;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-ghost { background: rgba(255, 255, 255, 0.1); color: var(--text-primary); }
+  .btn-primary { background: linear-gradient(90deg, var(--bar-bottom), var(--bar-top)); color: #2b140d; }
+
+  .confidence-row { margin: 14px 0 4px; text-align: center; }
+
+  .remaining-row { margin: 14px 0 4px; text-align: center; }
+
+  .source-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+  }
+
+  .compare-badge {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+  }
+  .compare-badge.warn { color: #ffc98a; }
+
+  .fiveday-block { padding: 18px 24px 4px; }
+  .fiveday-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .fiveday-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 2px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .fiveday-card .fd-day { font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+  .fiveday-card .fd-icon { font-size: 16px; }
+  .fiveday-card .fd-kwh { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .fiveday-card .fd-temp { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+
+  .solcast-settings { margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--divider); }
+  .solcast-settings .field-row { margin-bottom: 10px; }
+  .solcast-settings label {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+  }
+  .solcast-settings input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--card-border);
+    border-radius: 9px;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .solcast-status { font-size: 11.5px; margin-top: 6px; min-height: 14px; }
+  .solcast-status.ok { color: #a8f5bd; }
+  .solcast-status.err { color: #ffa1a1; }
+
+  .install-hint {
+    position: relative;
+    z-index: 1;
+    max-width: 380px;
+    width: 100%;
+    margin-top: 14px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    padding: 10px 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--card-border);
+    backdrop-filter: blur(10px);
+    display: none;
+  }
+  .install-hint.show { display: block; }
+  .install-hint span { color: var(--accent); font-weight: 600; }
+
+  .weather-now {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 0;
+    margin-top: 12px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+  }
+  .weather-now .w-icon { font-size: 14px; margin-right: 2px; }
+  .weather-now .w-temp { font-weight: 700; color: var(--text-primary); margin-right: 2px; }
+  .weather-now .w-sep { color: var(--text-tertiary); margin: 0 5px; }
+  .weather-now .w-label b { color: var(--text-primary); font-weight: 700; }
+
+  .typical-row {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    text-align: center;
+    margin: -4px 0 10px;
+  }
+  .typical-row.above { color: #a8f5bd; }
+  .typical-row.below { color: #ffa1a1; }
+  .typical-row.near  { color: var(--text-secondary); }
+
+  .skeleton {
+    display: inline-block;
+    height: 1em;
+    width: 60px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.2), rgba(255,255,255,0.08));
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* desktop / wide viewport layout: split day forecast (left) from
+     5-day strip + advisor (right), Apple-Weather-widget style */
+  @media (min-width: 860px) {
+    .card { max-width: 760px; }
+    .install-hint { max-width: 760px; }
+
+    .mobile-divider { display: none; }
+
+    .card-body {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      grid-template-areas: "day five" "day advisor";
+    }
+    .day-block {
+      grid-area: day;
+      border-right: 1px solid var(--divider);
+      padding: 26px 30px 10px;
+    }
+    .fiveday-block {
+      grid-area: five;
+      border-bottom: 1px solid var(--divider);
+      padding: 22px 26px 20px;
+    }
+    .advisor-block { grid-area: advisor; padding: 20px 26px 24px; }
+
+    .fiveday-row { grid-template-columns: repeat(5, 1fr); }
+
+    .header { padding: 30px 30px 18px; }
+    .footer { padding: 18px 30px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap" style="display:flex; flex-direction:column; align-items:center; width:100%;">
+  <div class="card">
+    <div class="header">
+      <div class="icon">☀️</div>
+      <h1>Solar Forecast</h1>
+      <p class="date" id="today-date">—</p>
+      <div class="segmented">
+        <button type="button" id="tab-today" class="active">Today</button>
+        <button type="button" id="tab-tomorrow">Tomorrow</button>
+      </div>
+      <div class="weather-now" id="weather-now" style="display:none;">
+        <span class="w-icon" id="w-icon"></span>
+        <span class="w-temp" id="w-temp"></span>
+        <span class="w-sep">·</span>
+        <span class="w-label">feels <b id="w-feels"></b></span>
+        <span class="w-sep">·</span>
+        <span class="w-label"><b id="w-rain"></b></span>
+        <span class="w-sep">·</span>
+        <span class="w-label">💨 <b id="w-wind"></b></span>
+        <span class="w-sep">·</span>
+        <span class="w-label">UV <b id="w-uv"></b></span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="card-body">
+      <div class="day-block" id="day-block">
+        <div class="label">Estimated Daily Generation</div>
+        <div class="kwh"><span class="skeleton"></span></div>
+        <div class="typical-row" id="typical-row" style="display:none;"></div>
+
+        <div class="confidence-row" id="confidence-row" style="display:none;">
+          <div class="label">Likely Range</div>
+          <div class="value-sm" id="confidence-value">—</div>
+        </div>
+
+        <div class="quality-row">
+          <span class="quality-badge" id="quality-badge">&nbsp;</span>
+          <span class="quality-text" id="quality-text"></span>
+        </div>
+
+        <div class="sparkline-wrap">
+          <svg class="sparkline" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
+        </div>
+
+        <div class="remaining-row" id="remaining-row" style="display:none;">
+          <div class="label">Remaining Today</div>
+          <div class="value-sm" id="remaining-value">—</div>
+        </div>
+
+        <div class="window-row">
+          <div class="label">Best Solar Window</div>
+          <div class="value-sm" id="best-window">—</div>
+        </div>
+
+        <div class="stat-grid">
+          <div>
+            <div class="label">Peak Output</div>
+            <div class="value-sm" id="peak-output">—</div>
+          </div>
+          <div>
+            <div class="label">Installed Capacity</div>
+            <div class="value-sm" id="installed-capacity">—</div>
+          </div>
+        </div>
+
+        <div class="utilisation">
+          <div class="label-row">
+            <span>Capacity Utilisation</span>
+            <b id="utilisation-pct">—</b>
+          </div>
+          <div class="bar"><div class="bar-fill" id="utilisation-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="divider mobile-divider"></div>
+
+      <div class="fiveday-block" id="fiveday-block" style="display:none;">
+        <div class="label">5-Day Forecast</div>
+        <div class="fiveday-row" id="fiveday-row"></div>
+      </div>
+
+      <div class="divider mobile-divider"></div>
+
+      <div class="advisor-block">
+        <div class="advisor-header">
+          <div class="label" style="margin:0;">Off-Grid Energy Advisor</div>
+          <button type="button" class="settings-btn" id="settings-btn" aria-label="Edit typical daily loads">⚙</button>
+        </div>
+
+        <div class="advisor-metric">
+          <div class="label" id="advisor-metric-label">Estimated Solar Surplus</div>
+          <div class="value-md" id="advisor-value">—</div>
+          <div class="advisor-sub" id="advisor-sub">—</div>
+        </div>
+
+        <div class="advice-card">
+          <span class="advice-icon" id="advice-icon">☀️</span>
+          <span id="advice-text">Loading forecast…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="footer">
+      <div class="footer-row">
+        <span class="dot" id="status-dot"></span>
+        <span id="updated-text">Loading…</span>
+        <button type="button" id="retry-btn" style="display:none; margin-left:8px; background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.22); color:var(--text-secondary); font:inherit; font-size:11.5px; font-weight:600; padding:3px 10px; border-radius:8px; cursor:pointer;">Retry</button>
+      </div>
+      <div class="footer-grid">
+        <div>
+          <div class="f-label">Forecast Updated</div>
+          <div class="f-value" id="updated-time">—</div>
+        </div>
+        <div>
+          <div class="f-label">Next Refresh</div>
+          <div class="f-value" id="next-refresh-time">—</div>
+        </div>
+        <div id="sunrise-cell" style="display:none;">
+          <div class="f-label">Sunrise</div>
+          <div class="f-value" id="w-sunrise">—</div>
+        </div>
+        <div id="sunset-cell" style="display:none;">
+          <div class="f-label">Sunset</div>
+          <div class="f-value" id="w-sunset">—</div>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        <div class="source-tag" id="source-tag">—</div>
+        <div class="compare-badge" id="compare-badge" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="install-hint" id="install-hint">
+    Tap <span>Share</span> then <span>Add to Home Screen</span> to install
+  </div>
+</div>
+
+<div class="modal-overlay" id="settings-overlay">
+  <div class="modal">
+    <div class="solcast-settings">
+      <h2>Solcast Forecast (optional)</h2>
+      <p class="modal-sub">
+        Adds 30-minute forecasts, a confidence range, and a 5-day outlook.
+        Your key is saved only in this browser — never in the app's source
+        or repo. Leave blank to keep using Forecast.Solar only.
+      </p>
+      <div class="field-row">
+        <label for="solcast-resource-id">Rooftop Site ID</label>
+        <input type="text" id="solcast-resource-id" placeholder="e.g. 37ec-3bea-7aae-edd6" autocomplete="off" />
+      </div>
+      <div class="field-row">
+        <label for="solcast-api-key">API Key</label>
+        <input type="password" id="solcast-api-key" placeholder="Solcast API key" autocomplete="off" />
+      </div>
+      <div class="solcast-status" id="solcast-status"></div>
+    </div>
+
+    <h2>Typical Daily Loads</h2>
+    <p class="modal-sub">
+      Used to estimate how much of today's solar generation is left over to
+      charge the battery after your normal daytime use.
+    </p>
+
+    <div class="load-legend"><span>Appliance</span><span>Watts</span><span>Hours/day</span></div>
+
+    <div class="load-row">
+      <span class="load-name">Fridge</span>
+      <div class="load-field"><input type="number" min="0" step="1" id="load-fridge-watts" /><span>W</span></div>
+      <div class="load-field"><input type="number" min="0" step="0.5" id="load-fridge-hours" /><span>h</span></div>
+    </div>
+    <div class="load-row">
+      <span class="load-name">Laptop</span>
+      <div class="load-field"><input type="number" min="0" step="1" id="load-laptop-watts" /><span>W</span></div>
+      <div class="load-field"><input type="number" min="0" step="0.5" id="load-laptop-hours" /><span>h</span></div>
+    </div>
+    <div class="load-row">
+      <span class="load-name">Phone</span>
+      <div class="load-field"><input type="number" min="0" step="1" id="load-phone-watts" /><span>W</span></div>
+      <div class="load-field"><input type="number" min="0" step="0.5" id="load-phone-hours" /><span>h</span></div>
+    </div>
+    <div class="load-row">
+      <span class="load-name">Lights</span>
+      <div class="load-field"><input type="number" min="0" step="1" id="load-lights-watts" /><span>W</span></div>
+      <div class="load-field"><input type="number" min="0" step="0.5" id="load-lights-hours" /><span>h</span></div>
+    </div>
+
+    <p class="modal-sub" style="margin:14px 0 0;">
+      Projector and dehumidifier aren't counted here — they're treated as optional
+      extras the advice suggests only on good solar days.
+    </p>
+
+    <div style="text-align:center; margin-top:16px;">
+      <button type="button" id="settings-reset" style="background:none;border:none;color:var(--text-secondary);font:inherit;font-size:12.5px;text-decoration:underline;cursor:pointer;padding:4px;">Reset to defaults</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="settings-cancel">Cancel</button>
+      <button type="button" class="btn-primary" id="settings-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const LAT = -40.819, LON = 175.207694, TILT = 45, AZIMUTH = 0, SYSTEM_KWP = 1.6;
+  const API_URL = `https://api.forecast.solar/estimate/${LAT}/${LON}/${TILT}/${AZIMUTH}/${SYSTEM_KWP}`;
+  const REFRESH_MS = 30 * 60 * 1000;          // Forecast.Solar: 2/hr, well within 12/hr limit
+  const SOLCAST_REFRESH_MS = 3 * 60 * 60 * 1000; // Solcast: max 8/day, within 10/day limit
+  const MIN_VISIBILITY_REFRESH_MS = 10 * 60 * 1000; // don't refetch if app was only backgrounded briefly
+  const CACHE_KEY = "solar-forecast-cache-v1";
+  const SETTINGS_KEY = "solar-forecast-loads-v1";
+  const SOLCAST_SETTINGS_KEY = "solcast-settings-v1";
+  const SOLCAST_CACHE_KEY = "solcast-cache-v1";
+  const WEATHER_CACHE_KEY = "solar-weather-cache-v1";
+  const AGREE_THRESHOLD = 0.10;
+  const DIFFER_THRESHOLD = 0.25;
+
+  const OPEN_METEO_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
+    `&daily=sunrise,sunset,uv_index_max,uv_index_clear_sky_max,apparent_temperature_min,temperature_2m_max,wind_speed_10m_max,weather_code` +
+    `&hourly=temperature_2m,rain,showers,wind_speed_10m,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high` +
+    `&current=temperature_2m,apparent_temperature,is_day,rain,showers,wind_speed_10m,cloud_cover,weather_code` +
+    `&timezone=Pacific%2FAuckland`;
+
+  // NIWA SolarView 27-yr monthly averages (Paraparaumu EWS), W/m² per hour on tilted surface.
+  // Index: NIWA_MHR[month-1][hour 0..23]. Multiply by SYSTEM_KWP for typical panel watts.
+  const NIWA_MHR = [
+    [0,0,0,0,1,15,100,236,376,520,640,725,771,752,689,577,430,267,119,18,2,0,0,0],   // Jan
+    [0,0,0,0,0,3,30,163,301,448,576,669,708,690,623,506,364,204,65,3,0,0,0,0],       // Feb
+    [0,0,0,0,0,1,11,92,229,358,482,560,591,563,496,383,243,101,12,0,0,0,0,0],        // Mar
+    [0,0,0,0,0,0,2,27,139,247,343,407,431,405,333,231,111,19,1,0,0,0,0,0],           // Apr
+    [0,0,0,0,0,0,1,9,73,163,244,296,306,287,221,131,41,2,0,0,0,0,0,0],              // May
+    [0,0,0,0,0,0,0,3,35,123,197,243,256,236,179,102,26,2,0,0,0,0,0,0],              // Jun
+    [0,0,0,0,0,0,0,6,55,148,232,290,309,285,229,141,50,3,0,0,0,0,0,0],              // Jul
+    [0,0,0,0,0,0,2,23,121,223,313,376,401,377,315,217,107,19,1,0,0,0,0,0],           // Aug
+    [0,0,0,0,0,1,16,105,224,337,435,493,510,475,408,301,177,60,3,0,0,0,0,0],         // Sep
+    [0,0,0,0,1,9,71,195,322,447,547,605,630,588,506,390,254,120,20,1,0,0,0,0],       // Oct
+    [0,0,0,0,2,26,133,258,395,522,624,704,717,680,596,474,331,189,65,5,0,0,0,0],     // Nov
+    [0,0,0,0,3,28,134,257,389,524,634,704,723,715,644,533,394,245,109,18,1,0,0,0],   // Dec
+  ];
+
+  function typicalForMonth(month) {
+    const hourly = NIWA_MHR[month - 1];
+    const hourlyWatts = hourly.map((w) => w * SYSTEM_KWP);
+    const dailyWh = hourlyWatts.reduce((a, b) => a + b, 0);
+    return { hourlyWatts, dailyWh };
+  }
+
+  const BATTERY_VOLTAGE = 24;
+  const BATTERY_AH = 110;
+  const CHARGE_EFFICIENCY = 0.92;
+
+  const DEFAULT_LOADS = {
+    fridge: { label: "Fridge", watts: 140, hours: 8 },
+    laptop: { label: "Laptop", watts: 40, hours: 4 },
+    phone: { label: "Phone", watts: 12, hours: 2 },
+    lights: { label: "Lights", watts: 15, hours: 2 },
+  };
+
+  let currentJson = null;
+  let activeDay = "today"; // "today" | "tomorrow"
+
+  const els = {
+    date: document.getElementById("today-date"),
+    updatedText: document.getElementById("updated-text"),
+    updatedTime: document.getElementById("updated-time"),
+    nextRefresh: document.getElementById("next-refresh-time"),
+    dot: document.getElementById("status-dot"),
+    dayBlock: document.getElementById("day-block"),
+    kwh: document.querySelector("#day-block .kwh"),
+    qualityBadge: document.getElementById("quality-badge"),
+    qualityText: document.getElementById("quality-text"),
+    svg: document.querySelector("#day-block .sparkline"),
+    bestWindow: document.getElementById("best-window"),
+    peakOutput: document.getElementById("peak-output"),
+    installedCapacity: document.getElementById("installed-capacity"),
+    utilPct: document.getElementById("utilisation-pct"),
+    utilBar: document.getElementById("utilisation-bar"),
+    tabToday: document.getElementById("tab-today"),
+    tabTomorrow: document.getElementById("tab-tomorrow"),
+    advisorLabel: document.getElementById("advisor-metric-label"),
+    advisorValue: document.getElementById("advisor-value"),
+    advisorSub: document.getElementById("advisor-sub"),
+    adviceIcon: document.getElementById("advice-icon"),
+    adviceText: document.getElementById("advice-text"),
+    settingsBtn: document.getElementById("settings-btn"),
+    settingsOverlay: document.getElementById("settings-overlay"),
+    settingsSave: document.getElementById("settings-save"),
+    settingsCancel: document.getElementById("settings-cancel"),
+    settingsReset: document.getElementById("settings-reset"),
+    confidenceRow: document.getElementById("confidence-row"),
+    confidenceValue: document.getElementById("confidence-value"),
+    remainingRow: document.getElementById("remaining-row"),
+    remainingValue: document.getElementById("remaining-value"),
+    fivedayBlock: document.getElementById("fiveday-block"),
+    fivedayRow: document.getElementById("fiveday-row"),
+    sourceTag: document.getElementById("source-tag"),
+    compareBadge: document.getElementById("compare-badge"),
+    solcastResourceId: document.getElementById("solcast-resource-id"),
+    solcastApiKey: document.getElementById("solcast-api-key"),
+    solcastStatus: document.getElementById("solcast-status"),
+    typicalRow: document.getElementById("typical-row"),
+    weatherNow: document.getElementById("weather-now"),
+    wIcon: document.getElementById("w-icon"),
+    wTemp: document.getElementById("w-temp"),
+    wFeels: document.getElementById("w-feels"),
+    wRain: document.getElementById("w-rain"),
+    wWind: document.getElementById("w-wind"),
+    wUv: document.getElementById("w-uv"),
+    wSunrise: document.getElementById("w-sunrise"),
+    wSunset: document.getElementById("w-sunset"),
+    sunriseCell: document.getElementById("sunrise-cell"),
+    sunsetCell: document.getElementById("sunset-cell"),
+    retryBtn: document.getElementById("retry-btn"),
+  };
+
+  els.installedCapacity.textContent = `${SYSTEM_KWP.toFixed(1)} kW`;
+
+  function saveCache(data) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+    } catch (_) {}
+  }
+
+  function loadCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) return structuredClone(DEFAULT_LOADS);
+      const parsed = JSON.parse(raw);
+      const merged = structuredClone(DEFAULT_LOADS);
+      for (const key of Object.keys(merged)) {
+        if (parsed[key]) {
+          merged[key].watts = Number(parsed[key].watts) || merged[key].watts;
+          merged[key].hours = Number(parsed[key].hours) || merged[key].hours;
+        }
+      }
+      return merged;
+    } catch (_) {
+      return structuredClone(DEFAULT_LOADS);
+    }
+  }
+
+  function saveSettings(loads) {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(loads));
+    } catch (_) {}
+  }
+
+  let currentLoads = loadSettings();
+
+  function loadSolcastSettings() {
+    try {
+      const raw = localStorage.getItem(SOLCAST_SETTINGS_KEY);
+      return raw ? JSON.parse(raw) : { apiKey: "", resourceId: "" };
+    } catch (_) {
+      return { apiKey: "", resourceId: "" };
+    }
+  }
+
+  function saveSolcastSettings(cfg) {
+    try {
+      localStorage.setItem(SOLCAST_SETTINGS_KEY, JSON.stringify(cfg));
+    } catch (_) {}
+  }
+
+  function saveSolcastCache(data) {
+    try {
+      localStorage.setItem(SOLCAST_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+    } catch (_) {}
+  }
+
+  function loadSolcastCache() {
+    try {
+      const raw = localStorage.getItem(SOLCAST_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveWeatherCache(data) {
+    try { localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() })); } catch (_) {}
+  }
+  function loadWeatherCache() {
+    try { const r = localStorage.getItem(WEATHER_CACHE_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; }
+  }
+
+  let currentSolcastConfig = loadSolcastSettings();
+
+  // --- normalization: both sources are converted into the same shape so
+  // every render function below can stay source-agnostic. ---
+
+  // Solcast returns UTC timestamps; group them into calendar days using the
+  // panel site's own timezone, not the viewing device's — otherwise "today"
+  // shifts by however many hours separate the two, splitting one real solar
+  // day's data across two buckets.
+  const SITE_TIMEZONE = "Pacific/Auckland";
+
+  function localKey(d) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: SITE_TIMEZONE,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    const get = (type) => parts.find((p) => p.type === type).value;
+    const hour = get("hour") === "24" ? "00" : get("hour");
+    return `${get("year")}-${get("month")}-${get("day")} ${hour}:${get("minute")}:${get("second")}`;
+  }
+
+  function parsePeriodHours(period) {
+    const m = /^PT(?:(\d+)H)?(?:(\d+)M)?$/.exec(period || "");
+    if (!m) return 0.5;
+    return Number(m[1] || 0) + Number(m[2] || 0) / 60;
+  }
+
+  function buildResultFromForecastSolar(json) {
+    return {
+      watts: json.result.watts,
+      watt_hours_day: json.result.watt_hours_day,
+      wattHoursCumulative: json.result.watt_hours,
+      watts10: null,
+      watts90: null,
+      watt_hours_day10: null,
+      watt_hours_day90: null,
+    };
+  }
+
+  function buildResultFromSolcast(json) {
+    const watts = {}, watts10 = {}, watts90 = {};
+    const watt_hours_day = {}, watt_hours_day10 = {}, watt_hours_day90 = {};
+    const intervals = (json.forecasts || [])
+      .map((f) => ({
+        time: new Date(f.period_end),
+        hours: parsePeriodHours(f.period),
+        pv: f.pv_estimate ?? 0,
+        pv10: f.pv_estimate10 ?? f.pv_estimate ?? 0,
+        pv90: f.pv_estimate90 ?? f.pv_estimate ?? 0,
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    for (const e of intervals) {
+      const key = localKey(e.time);
+      const dayKey = key.slice(0, 10);
+      watts[key] = e.pv * 1000;
+      watts10[key] = e.pv10 * 1000;
+      watts90[key] = e.pv90 * 1000;
+      watt_hours_day[dayKey] = (watt_hours_day[dayKey] || 0) + e.pv * e.hours * 1000;
+      watt_hours_day10[dayKey] = (watt_hours_day10[dayKey] || 0) + e.pv10 * e.hours * 1000;
+      watt_hours_day90[dayKey] = (watt_hours_day90[dayKey] || 0) + e.pv90 * e.hours * 1000;
+    }
+
+    return { watts, watts10, watts90, watt_hours_day, watt_hours_day10, watt_hours_day90, intervals };
+  }
+
+  function computeRemainingWh(source, result, dayKey) {
+    if (!dayKey) return null;
+    const now = Date.now();
+    if (source === "solcast") {
+      let remaining = 0;
+      for (const e of result.intervals) {
+        if (localKey(e.time).startsWith(dayKey) && e.time.getTime() > now) {
+          remaining += e.pv * e.hours * 1000;
+        }
+      }
+      return remaining;
+    }
+    const cumulative = result.wattHoursCumulative;
+    if (!cumulative) return null;
+    const keys = Object.keys(cumulative).filter((k) => k.startsWith(dayKey)).sort();
+    if (!keys.length) return null;
+    let atNow = 0;
+    for (const k of keys) {
+      if (new Date(k.replace(" ", "T")).getTime() <= now) atNow = cumulative[k];
+      else break;
+    }
+    const dayTotal = result.watt_hours_day[dayKey] || 0;
+    return Math.max(0, dayTotal - atNow);
+  }
+
+  function formatPower(watts) {
+    if (watts < 1000) return `${Math.round(watts)} W`;
+    return `${(watts / 1000).toFixed(2)} kW`;
+  }
+
+  function formatHour(date) {
+    return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+
+  function formatDateLong(dateStr) {
+    const d = new Date(dateStr + "T12:00:00");
+    return d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  }
+
+  function qualityFromUtilisation(pct) {
+    if (pct >= 70) return { key: "excellent", label: "Excellent", text: "Excellent conditions with near-maximum output expected." };
+    if (pct >= 50) return { key: "good", label: "Good", text: "Good conditions with solid output expected." };
+    if (pct >= 30) return { key: "fair", label: "Fair", text: "Fair conditions with moderate output expected." };
+    if (pct >= 15) return { key: "poor", label: "Poor", text: "Limited production expected due to persistent cloud." };
+    return { key: "verypoor", label: "Very Poor", text: "Heavy cloud will significantly reduce solar production." };
+  }
+
+  function dayQuality(dayKey, watts) {
+    if (!dayKey) return null;
+    const points = dayPoints(dayKey, watts);
+    const peakW = points.length ? Math.max(...points.map((p) => p.watts)) : 0;
+    const utilisation = Math.min(100, (peakW / (SYSTEM_KWP * 1000)) * 100);
+    return { peakW, utilisation, ...qualityFromUtilisation(utilisation) };
+  }
+
+  function dayPoints(dayKey, watts, watts10, watts90) {
+    return Object.keys(watts)
+      .filter((k) => k.startsWith(dayKey))
+      .sort()
+      .map((k) => ({
+        time: new Date(k.replace(" ", "T")),
+        watts: watts[k],
+        watts10: watts10 ? watts10[k] : undefined,
+        watts90: watts90 ? watts90[k] : undefined,
+      }));
+  }
+
+  function bestWindow(points, peakW) {
+    if (!points.length || peakW <= 0) return "—";
+    const threshold = peakW * 0.75;
+    const qualifying = points.filter((p) => p.watts >= threshold);
+    if (!qualifying.length) return "—";
+    const start = qualifying[0].time;
+    const lastIdx = points.indexOf(qualifying[qualifying.length - 1]);
+    const end = points[lastIdx + 1]?.time ?? new Date(qualifying[qualifying.length - 1].time.getTime() + 60 * 60 * 1000);
+    return `${formatHour(start)} – ${formatHour(end)}`;
+  }
+
+  function renderSparkline(svg, points, highlightNow, typicalHourlyWatts) {
+    const width = 300, height = 54, padTop = 6, padBottom = 6;
+    svg.innerHTML = "";
+    if (!points.length) return;
+
+    const hasBand = points.every((p) => p.watts90 != null);
+    const values = points.map((p) => p.watts);
+    const max = Math.max(
+      ...values,
+      ...(hasBand ? points.map((p) => p.watts90) : []),
+      ...(typicalHourlyWatts || []),
+      1
+    );
+    const step = width / (values.length - 1 || 1);
+    const toY = (v) => height - padBottom - (v / max) * (height - padTop - padBottom);
+    const xy = values.map((v, i) => [i * step, toY(v)]);
+
+    let line = `M ${xy[0][0].toFixed(1)} ${xy[0][1].toFixed(1)}`;
+    for (let i = 1; i < xy.length; i++) {
+      const [x0, y0] = xy[i - 1];
+      const [x1, y1] = xy[i];
+      const mx = (x0 + x1) / 2;
+      line += ` Q ${x0.toFixed(1)} ${y0.toFixed(1)} ${mx.toFixed(1)} ${((y0 + y1) / 2).toFixed(1)}`;
+      line += ` Q ${x1.toFixed(1)} ${y1.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    }
+    const area = `${line} L ${xy[xy.length - 1][0].toFixed(1)} ${height} L ${xy[0][0].toFixed(1)} ${height} Z`;
+
+    const ns = "http://www.w3.org/2000/svg";
+    const g = document.createElementNS(ns, "g");
+    g.setAttribute("class", "graph-fade");
+
+    const uid = "g" + Math.random().toString(36).slice(2, 8);
+    const defs = document.createElementNS(ns, "defs");
+    defs.innerHTML = `
+      <linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--bar-top)" stop-opacity="0.55" />
+        <stop offset="100%" stop-color="var(--bar-bottom)" stop-opacity="0.02" />
+      </linearGradient>
+    `;
+    g.appendChild(defs);
+
+    if (typicalHourlyWatts) {
+      const tXY = typicalHourlyWatts.map((w, h) => [
+        (h / (typicalHourlyWatts.length - 1)) * width,
+        toY(w),
+      ]);
+      let tD = `M ${tXY[0][0].toFixed(1)} ${tXY[0][1].toFixed(1)}`;
+      for (let i = 1; i < tXY.length; i++) {
+        const [x0, y0] = tXY[i - 1], [x1, y1] = tXY[i];
+        const mx = (x0 + x1) / 2;
+        tD += ` Q ${x0.toFixed(1)} ${y0.toFixed(1)} ${mx.toFixed(1)} ${((y0+y1)/2).toFixed(1)}`;
+        tD += ` Q ${x1.toFixed(1)} ${y1.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+      }
+      const tPath = document.createElementNS(ns, "path");
+      tPath.setAttribute("d", tD);
+      tPath.setAttribute("fill", "none");
+      tPath.setAttribute("stroke", "rgba(255,255,255,0.28)");
+      tPath.setAttribute("stroke-width", "1.5");
+      tPath.setAttribute("stroke-dasharray", "3 3");
+      tPath.setAttribute("stroke-linecap", "round");
+      g.appendChild(tPath);
+    }
+
+    if (hasBand) {
+      const upper = points.map((p, i) => [i * step, toY(p.watts90)]);
+      const lower = points.map((p, i) => [i * step, toY(p.watts10)]);
+      let bandD = `M ${upper[0][0].toFixed(1)} ${upper[0][1].toFixed(1)}`;
+      for (let i = 1; i < upper.length; i++) bandD += ` L ${upper[i][0].toFixed(1)} ${upper[i][1].toFixed(1)}`;
+      for (let i = lower.length - 1; i >= 0; i--) bandD += ` L ${lower[i][0].toFixed(1)} ${lower[i][1].toFixed(1)}`;
+      bandD += " Z";
+      const bandPath = document.createElementNS(ns, "path");
+      bandPath.setAttribute("d", bandD);
+      bandPath.setAttribute("fill", "rgba(255, 255, 255, 0.12)");
+      bandPath.setAttribute("stroke", "none");
+      g.appendChild(bandPath);
+    }
+
+    const areaPath = document.createElementNS(ns, "path");
+    areaPath.setAttribute("d", area);
+    areaPath.setAttribute("fill", `url(#${uid})`);
+    g.appendChild(areaPath);
+
+    const linePath = document.createElementNS(ns, "path");
+    linePath.setAttribute("d", line);
+    linePath.setAttribute("fill", "none");
+    linePath.setAttribute("stroke", "var(--accent)");
+    linePath.setAttribute("stroke-width", "2.5");
+    linePath.setAttribute("stroke-linecap", "round");
+    linePath.setAttribute("stroke-linejoin", "round");
+    g.appendChild(linePath);
+
+    // current-hour marker
+    let nowIdx = -1;
+    if (highlightNow) {
+      const now = Date.now();
+      let best = Infinity;
+      points.forEach((p, i) => {
+        const d = Math.abs(p.time.getTime() - now);
+        if (d < best) { best = d; nowIdx = i; }
+      });
+      if (best > 90 * 60 * 1000) nowIdx = -1; // only highlight if within ~1.5h of a sample
+    }
+
+    if (nowIdx >= 0) {
+      const [nx] = xy[nowIdx];
+      const vline = document.createElementNS(ns, "line");
+      vline.setAttribute("x1", nx.toFixed(1));
+      vline.setAttribute("x2", nx.toFixed(1));
+      vline.setAttribute("y1", "0");
+      vline.setAttribute("y2", height);
+      vline.setAttribute("class", "now-line");
+      g.appendChild(vline);
+    }
+
+    xy.forEach(([x, y], i) => {
+      const c = document.createElementNS(ns, "circle");
+      c.setAttribute("cx", x.toFixed(1));
+      c.setAttribute("cy", y.toFixed(1));
+      c.setAttribute("r", i === nowIdx ? "4.5" : "2.4");
+      c.setAttribute("class", "pt" + (i === nowIdx ? " now" : ""));
+      g.appendChild(c);
+    });
+
+    svg.appendChild(g);
+  }
+
+  function renderDayData(dayKey, dayKwh, result, isActualToday, source) {
+    if (dayKey == null) {
+      els.kwh.innerHTML = "—";
+      els.qualityBadge.textContent = "—";
+      els.qualityBadge.className = "quality-badge";
+      els.qualityText.textContent = "No forecast data available.";
+      els.bestWindow.textContent = "—";
+      els.peakOutput.textContent = "—";
+      els.utilPct.textContent = "—";
+      els.utilBar.style.width = "0%";
+      els.confidenceRow.style.display = "none";
+      els.remainingRow.style.display = "none";
+      els.typicalRow.style.display = "none";
+      renderSparkline(els.svg, [], false);
+      els.dayBlock.style.opacity = "0.45";
+      return;
+    }
+    els.dayBlock.style.opacity = "1";
+
+    const kwh = (dayKwh / 1000).toFixed(2);
+    els.kwh.innerHTML = `${kwh}<sup>kWh</sup>`;
+
+    if (result.watt_hours_day10 && result.watt_hours_day90) {
+      const lo = (result.watt_hours_day10[dayKey] / 1000).toFixed(1);
+      const hi = (result.watt_hours_day90[dayKey] / 1000).toFixed(1);
+      els.confidenceValue.textContent = `${lo}–${hi} kWh`;
+      els.confidenceRow.style.display = "";
+    } else {
+      els.confidenceRow.style.display = "none";
+    }
+
+    const points = dayPoints(dayKey, result.watts, result.watts10, result.watts90);
+    const peakW = points.length ? Math.max(...points.map((p) => p.watts)) : 0;
+    const peakPoint = points.find((p) => p.watts === peakW);
+
+    els.peakOutput.innerHTML = peakPoint
+      ? `${formatPower(peakW)} <span class="muted">at ${formatHour(peakPoint.time)}</span>`
+      : "—";
+
+    els.bestWindow.textContent = bestWindow(points, peakW);
+
+    const utilisation = Math.min(100, (peakW / (SYSTEM_KWP * 1000)) * 100);
+    const q = qualityFromUtilisation(utilisation);
+    els.qualityBadge.textContent = q.label;
+    els.qualityBadge.className = `quality-badge ${q.key}`;
+    els.qualityText.textContent = q.text;
+    els.utilPct.textContent = `${utilisation.toFixed(0)}%`;
+    els.utilBar.style.width = `${utilisation.toFixed(0)}%`;
+
+    const month = parseInt(dayKey.slice(5, 7), 10);
+    const typical = typicalForMonth(month);
+    if (typical.dailyWh > 0) {
+      const vsRaw = ((dayKwh / typical.dailyWh) - 1) * 100;
+      const vsAbs = Math.abs(vsRaw).toFixed(0);
+      const monthName = new Date(dayKey + "T12:00:00").toLocaleString("default", { month: "long" });
+      if (Math.abs(vsRaw) < 5) {
+        els.typicalRow.textContent = `Typical for ${monthName}`;
+        els.typicalRow.className = "typical-row near";
+      } else {
+        els.typicalRow.textContent = `${vsRaw > 0 ? "+" : "−"}${vsAbs}% vs typical for ${monthName}`;
+        els.typicalRow.className = `typical-row ${vsRaw > 0 ? "above" : "below"}`;
+      }
+      els.typicalRow.style.display = "";
+    } else {
+      els.typicalRow.style.display = "none";
+    }
+    renderSparkline(els.svg, points, isActualToday, typical.hourlyWatts);
+
+    if (isActualToday) {
+      const remainingWh = computeRemainingWh(source, result, dayKey);
+      if (remainingWh != null) {
+        els.remainingValue.textContent = `${(remainingWh / 1000).toFixed(2)} kWh`;
+        els.remainingRow.style.display = "";
+      } else {
+        els.remainingRow.style.display = "none";
+      }
+    } else {
+      els.remainingRow.style.display = "none";
+    }
+  }
+
+  function currentDayKeys(json) {
+    return Object.keys(json.result.watt_hours_day).sort();
+  }
+
+  function renderActiveDay() {
+    if (!currentJson) return;
+    const result = currentJson.result;
+    const days = currentDayKeys(currentJson);
+    const todayKey = days[0];
+    const tomorrowKey = days[1] ?? null;
+
+    const dayKey = activeDay === "today" ? todayKey : tomorrowKey;
+    const dayKwh = dayKey ? result.watt_hours_day[dayKey] : 0;
+    renderDayData(dayKey, dayKwh, result, activeDay === "today", currentJson.source);
+
+    els.tabTomorrow.disabled = !tomorrowKey;
+    els.date.textContent = dayKey ? formatDateLong(dayKey) : "—";
+  }
+
+  const GOOD_KEYS = new Set(["excellent", "good"]);
+
+  const ADVICE_MATRIX = {
+    "good-good": { icon: "☀️", text: "Great solar conditions today and tomorrow. Feel free to run higher-power appliances such as the dehumidifier or projector." },
+    "good-poor": { icon: "☀️", text: "Today is the best opportunity to use larger appliances before tomorrow's lower solar production." },
+    "poor-good": { icon: "☁️", text: "Conserve power today where practical — better charging conditions are expected tomorrow." },
+    "poor-poor": { icon: "🌧", text: "Limited solar is expected over the next two days. Avoid unnecessary high-power appliances and conserve battery power." },
+  };
+
+  function dailyLoadWh(loads) {
+    return Object.values(loads).reduce((sum, l) => sum + l.watts * l.hours, 0);
+  }
+
+  function renderAdvisor() {
+    if (!currentJson) return;
+    const result = currentJson.result;
+    const days = currentDayKeys(currentJson);
+    const todayKey = days[0];
+    const tomorrowKey = days[1] ?? null;
+
+    const todayWh = todayKey ? result.watt_hours_day[todayKey] : 0;
+    const loadWh = dailyLoadWh(currentLoads);
+    const surplusWh = todayWh - loadWh;
+    const storedWh = Math.abs(surplusWh) * CHARGE_EFFICIENCY;
+    const storedAh = storedWh / BATTERY_VOLTAGE;
+
+    if (surplusWh >= 0) {
+      els.advisorLabel.textContent = "Estimated Solar Surplus";
+      els.advisorValue.className = "value-md surplus";
+      els.advisorValue.textContent = `${(surplusWh / 1000).toFixed(2)} kWh`;
+      els.advisorSub.textContent = `≈ +${storedAh.toFixed(0)} Ah into battery, after typical daytime loads`;
+    } else {
+      els.advisorLabel.textContent = "Estimated Solar Deficit";
+      els.advisorValue.className = "value-md deficit";
+      els.advisorValue.textContent = `${(surplusWh / 1000).toFixed(2)} kWh`;
+      els.advisorSub.textContent = `Battery will need to supply ≈ ${storedAh.toFixed(0)} Ah for typical daytime loads`;
+    }
+
+    const todayQ = dayQuality(todayKey, result.watts);
+    const tomorrowQ = dayQuality(tomorrowKey, result.watts);
+    const todayBucket = todayQ && GOOD_KEYS.has(todayQ.key) ? "good" : "poor";
+    const tomorrowBucket = tomorrowQ ? (GOOD_KEYS.has(tomorrowQ.key) ? "good" : "poor") : todayBucket;
+    const advice = ADVICE_MATRIX[`${todayBucket}-${tomorrowBucket}`];
+
+    els.adviceIcon.textContent = advice.icon;
+    els.adviceText.textContent = advice.text;
+  }
+
+  function renderFiveDay(json) {
+    if (json.source !== "solcast") {
+      els.fivedayBlock.style.display = "none";
+      return;
+    }
+    const days = currentDayKeys(json).slice(0, 5);
+    if (days.length < 3) {
+      els.fivedayBlock.style.display = "none";
+      return;
+    }
+    els.fivedayRow.innerHTML = "";
+
+    // Build weather lookup by date from Open-Meteo daily data
+    const wxByDay = {};
+    if (currentWeather?.daily) {
+      const d = currentWeather.daily;
+      (d.time || []).forEach((t, i) => {
+        wxByDay[t] = {
+          code: d.weather_code?.[i],
+          tmax: d.temperature_2m_max?.[i],
+        };
+      });
+    }
+
+    for (const dayKey of days) {
+      const q = dayQuality(dayKey, json.result.watts);
+      const kwh = (json.result.watt_hours_day[dayKey] / 1000).toFixed(1);
+      const label = new Date(dayKey + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" });
+      const wx = wxByDay[dayKey];
+      const icon = wx ? wmoIcon(wx.code, true) : (q?.key === "verypoor" ? "🌧" : q?.key === "poor" ? "☁️" : q?.key === "fair" ? "⛅" : "☀️");
+      const tempStr = wx?.tmax != null ? `${Math.round(wx.tmax)}°` : "";
+      const card = document.createElement("div");
+      card.className = "fiveday-card";
+      card.innerHTML = `
+        <span class="fd-day">${label}</span>
+        <span class="fd-icon">${icon}</span>
+        <span class="fd-kwh">${kwh} kWh</span>
+        ${tempStr ? `<span class="fd-temp">${tempStr}</span>` : ""}
+      `;
+      els.fivedayRow.appendChild(card);
+    }
+    els.fivedayBlock.style.display = "";
+  }
+
+  function compareForecasts(solcastResult, fsResult) {
+    const solcastDays = Object.keys(solcastResult.watt_hours_day).sort();
+    const fsDays = Object.keys(fsResult.watt_hours_day).sort();
+    const todayKey = solcastDays[0];
+    if (!todayKey || !fsDays.includes(todayKey)) {
+      els.compareBadge.style.display = "none";
+      return;
+    }
+    const a = solcastResult.watt_hours_day[todayKey];
+    const b = fsResult.watt_hours_day[todayKey];
+    const pctDiff = Math.abs(a - b) / Math.max(a, b, 1);
+
+    if (pctDiff <= AGREE_THRESHOLD) {
+      els.compareBadge.textContent = "Forecasts agree.";
+      els.compareBadge.className = "compare-badge";
+      els.compareBadge.style.display = "";
+    } else if (pctDiff >= DIFFER_THRESHOLD) {
+      els.compareBadge.textContent = "Forecasts differ significantly today. Expect greater uncertainty.";
+      els.compareBadge.className = "compare-badge warn";
+      els.compareBadge.style.display = "";
+    } else {
+      els.compareBadge.style.display = "none";
+    }
+  }
+
+  function setActiveTab(day) {
+    activeDay = day;
+    els.tabToday.classList.toggle("active", day === "today");
+    els.tabTomorrow.classList.toggle("active", day === "tomorrow");
+    renderActiveDay();
+  }
+
+  function render(json, { stale } = {}) {
+    currentJson = json;
+    renderActiveDay();
+    renderAdvisor();
+    renderFiveDay(json);
+
+    els.retryBtn.style.display = "none";
+    els.updatedText.textContent = stale ? "Showing cached forecast (offline)" : "Live forecast";
+    els.updatedTime.textContent = formatHour(new Date());
+    els.nextRefresh.textContent = formatHour(new Date(Date.now() + REFRESH_MS));
+    els.dot.classList.toggle("stale", !!stale);
+    els.sourceTag.textContent = json.source === "solcast" ? "Powered by Solcast" : "Powered by Forecast.Solar";
+  }
+
+  function showUnavailable(reason) {
+    els.updatedText.textContent = "Forecast unavailable — tap Retry";
+    els.updatedTime.textContent = reason || "—";
+    els.nextRefresh.textContent = "—";
+    els.dot.classList.add("stale");
+    els.sourceTag.textContent = "—";
+    els.retryBtn.style.display = "";
+  }
+
+  function setSolcastStatus(msg, ok) {
+    if (!els.solcastStatus) return;
+    els.solcastStatus.textContent = msg;
+    els.solcastStatus.className = `solcast-status ${ok ? "ok" : "err"}`;
+  }
+
+  async function fetchForecastSolarRaw() {
+    const res = await fetch(API_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("bad status " + res.status);
+    const json = await res.json();
+    if (!json.result || json.message?.type === "error") throw new Error("api error");
+    return json;
+  }
+
+  async function fetchSolcastRaw(cfg) {
+    const url = `https://api.solcast.com.au/rooftop_sites/${encodeURIComponent(cfg.resourceId)}/forecasts?format=json&hours=168`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.apiKey}` } });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const json = await res.json();
+    if (!json.forecasts) throw new Error("unexpected response");
+    return json;
+  }
+
+  let currentWeather = null;
+
+  // WMO weather code → emoji. isDay controls sun vs moon for clear/partly-cloudy.
+  function wmoIcon(code, isDay) {
+    if (code == null) return isDay ? "☀️" : "🌙";
+    if (code === 0)                 return isDay ? "☀️" : "🌙";
+    if (code <= 2)                  return isDay ? "⛅" : "🌙";
+    if (code === 3)                 return "☁️";
+    if (code <= 48)                 return "🌫";   // fog
+    if (code <= 57)                 return "🌦";   // drizzle
+    if (code <= 67)                 return "🌧";   // rain
+    if (code <= 77)                 return "❄️";   // snow
+    if (code <= 82)                 return "🌦";   // showers
+    if (code <= 86)                 return "🌨";   // snow showers
+    return "⛈";                                   // thunderstorm
+  }
+
+  // Clear-sky fraction for a given day index from weather daily data
+  function clearSkyFraction(daily, idx) {
+    const actual = daily.uv_index_max?.[idx];
+    const clear = daily.uv_index_clear_sky_max?.[idx];
+    if (!clear || clear === 0) return null;
+    return Math.min(1, (actual || 0) / clear);
+  }
+
+  function fmtTime(isoStr) {
+    const d = new Date(isoStr);
+    return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+
+  function renderWeather(json) {
+    currentWeather = json;
+    const cur = json.current;
+    const daily = json.daily;
+
+    els.wIcon.textContent = wmoIcon(cur.weather_code, cur.is_day);
+    els.wTemp.textContent = `${Math.round(cur.temperature_2m)}°C`;
+    els.wFeels.textContent = `${Math.round(cur.apparent_temperature)}°C`;
+    const mm = (cur.rain || 0) + (cur.showers || 0);
+    const cloud = cur.cloud_cover != null ? `☁️ ${Math.round(cur.cloud_cover)}%` : (mm > 0 ? `🌧 ${mm.toFixed(1)} mm` : "🌤 Dry");
+    els.wRain.textContent = cloud;
+    els.wWind.textContent = `${Math.round(cur.wind_speed_10m)} km/h`;
+    const uv = daily.uv_index_max?.[0];
+    els.wUv.textContent = uv != null ? uv.toFixed(0) : "—";
+    els.weatherNow.style.display = "";
+
+    if (daily.sunrise?.[0]) {
+      els.wSunrise.textContent = fmtTime(daily.sunrise[0]);
+      els.sunriseCell.style.display = "";
+    }
+    if (daily.sunset?.[0]) {
+      els.wSunset.textContent = fmtTime(daily.sunset[0]);
+      els.sunsetCell.style.display = "";
+    }
+
+    if (currentJson) renderFiveDay(currentJson);
+  }
+
+  async function fetchWeather() {
+    try {
+      const res = await fetch(OPEN_METEO_URL);
+      if (!res.ok) throw new Error("status " + res.status);
+      const json = await res.json();
+      saveWeatherCache(json);
+      renderWeather(json);
+    } catch (_) {
+      const cached = loadWeatherCache();
+      if (cached) renderWeather(cached.data);
+    }
+  }
+
+  // Solcast is primary (30-min forecasts, confidence range, 5-day outlook).
+  // Forecast.Solar always runs alongside it: as the fallback if Solcast is
+  // unavailable, and as a cross-check against Solcast's daily total.
+  async function fetchAll() {
+    let fsRawJson = null, fsStale = false, fsError = null;
+    try {
+      fsRawJson = await fetchForecastSolarRaw();
+      saveCache(fsRawJson);
+    } catch (err) {
+      fsError = err.message;
+      console.warn("[solar] Forecast.Solar failed:", err.message);
+      const cached = loadCache();
+      if (cached) { fsRawJson = cached.data; fsStale = true; }
+    }
+
+    let solcastRawJson = null, solcastStale = false;
+    if (currentSolcastConfig.apiKey && currentSolcastConfig.resourceId) {
+      const solcastCached = loadSolcastCache();
+      const solcastAge = solcastCached ? Date.now() - solcastCached.timestamp : Infinity;
+      if (solcastAge < SOLCAST_REFRESH_MS) {
+        // Cache is fresh enough — use it without burning an API call
+        solcastRawJson = solcastCached.data;
+        solcastStale = false;
+      } else {
+        try {
+          solcastRawJson = await fetchSolcastRaw(currentSolcastConfig);
+          saveSolcastCache(solcastRawJson);
+          setSolcastStatus("Connected", true);
+        } catch (err) {
+          console.warn("[solar] Solcast failed:", err.message);
+          if (solcastCached) { solcastRawJson = solcastCached.data; solcastStale = true; }
+          setSolcastStatus(`Solcast error: ${err.message}`, false);
+        }
+      }
+    }
+
+    if (solcastRawJson) {
+      const solcastResult = buildResultFromSolcast(solcastRawJson);
+      if (fsRawJson) {
+        compareForecasts(solcastResult, buildResultFromForecastSolar(fsRawJson));
+      } else {
+        els.compareBadge.style.display = "none";
+      }
+      render({ source: "solcast", result: solcastResult }, { stale: solcastStale });
+    } else if (fsRawJson) {
+      els.compareBadge.style.display = "none";
+      render({ source: "forecastsolar", result: buildResultFromForecastSolar(fsRawJson) }, { stale: fsStale });
+    } else if (!currentJson) {
+      const reason = !currentSolcastConfig.apiKey
+        ? (fsError ? `Forecast.Solar: ${fsError}` : "No data sources configured")
+        : (fsError ? `Both sources failed — FS: ${fsError}` : "No forecast data");
+      showUnavailable(reason);
+    }
+  }
+
+  els.tabToday.addEventListener("click", () => setActiveTab("today"));
+  els.tabTomorrow.addEventListener("click", () => setActiveTab("tomorrow"));
+  els.retryBtn.addEventListener("click", () => { els.retryBtn.style.display = "none"; fetchAll(); });
+
+  function populateSettingsForm(loads) {
+    for (const key of Object.keys(DEFAULT_LOADS)) {
+      document.getElementById(`load-${key}-watts`).value = loads[key].watts;
+      document.getElementById(`load-${key}-hours`).value = loads[key].hours;
+    }
+  }
+
+  function openSettings() {
+    populateSettingsForm(currentLoads);
+    els.solcastResourceId.value = currentSolcastConfig.resourceId || "";
+    els.solcastApiKey.value = currentSolcastConfig.apiKey || "";
+    els.solcastStatus.textContent = "";
+    els.settingsOverlay.classList.add("show");
+  }
+
+  function closeSettings() {
+    els.settingsOverlay.classList.remove("show");
+  }
+
+  els.settingsBtn.addEventListener("click", openSettings);
+  els.settingsCancel.addEventListener("click", closeSettings);
+  els.settingsOverlay.addEventListener("click", (e) => {
+    if (e.target === els.settingsOverlay) closeSettings();
+  });
+
+  els.settingsReset.addEventListener("click", () => {
+    populateSettingsForm(DEFAULT_LOADS);
+  });
+
+  els.settingsSave.addEventListener("click", () => {
+    const loads = structuredClone(DEFAULT_LOADS);
+    for (const key of Object.keys(DEFAULT_LOADS)) {
+      const watts = Number(document.getElementById(`load-${key}-watts`).value);
+      const hours = Number(document.getElementById(`load-${key}-hours`).value);
+      loads[key].watts = Number.isFinite(watts) && watts >= 0 ? watts : DEFAULT_LOADS[key].watts;
+      loads[key].hours = Number.isFinite(hours) && hours >= 0 ? hours : DEFAULT_LOADS[key].hours;
+    }
+    currentLoads = loads;
+    saveSettings(loads);
+
+    currentSolcastConfig = {
+      resourceId: els.solcastResourceId.value.trim(),
+      apiKey: els.solcastApiKey.value.trim(),
+    };
+    saveSolcastSettings(currentSolcastConfig);
+
+    renderAdvisor();
+    closeSettings();
+    fetchAll();
+  });
+
+  function hydrateFromCache() {
+    if (currentSolcastConfig.apiKey && currentSolcastConfig.resourceId) {
+      const solcastCached = loadSolcastCache();
+      if (solcastCached) {
+        render({ source: "solcast", result: buildResultFromSolcast(solcastCached.data) }, { stale: true });
+        return;
+      }
+    }
+    const fsCached = loadCache();
+    if (fsCached) {
+      render({ source: "forecastsolar", result: buildResultFromForecastSolar(fsCached.data) }, { stale: true });
+    }
+  }
+
+  let lastFetchTime = 0;
+  const _fetchAll = fetchAll;
+  fetchAll = async () => { lastFetchTime = Date.now(); await _fetchAll(); };
+
+  hydrateFromCache();
+  fetchAll();
+  fetchWeather();
+  setInterval(fetchAll, REFRESH_MS);
+  setInterval(fetchWeather, REFRESH_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" &&
+        Date.now() - lastFetchTime > MIN_VISIBILITY_REFRESH_MS) {
+      fetchAll();
+    }
+  });
+
+  // PWA install hint (iOS Safari has no beforeinstallprompt)
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  if (isIOS && !isStandalone) {
+    document.getElementById("install-hint").classList.add("show");
+  }
+
+  if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
